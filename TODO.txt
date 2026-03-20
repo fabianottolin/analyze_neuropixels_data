@@ -1,0 +1,9 @@
+- implement raw data quality metrics
+- implement comparison of 2 sorters
+	- comparison = si_comparison.compare_two_sorters(sorting1, sorting2) # also possible to compare more via .comapre_multiple_sorters
+	- # when comparing 2 sorters you can extract basesorting -> units agreed on
+		- sorting_agreed = comparison.get_agreement_sorting(minimum_agreement_count)
+- implement manual curation (in phy)
+	- # -> copy to seperate folder, create seperate environment for phy, new script
+- implement LFP pipeline
+	-  LFP extraction -> large chunks & large margins (30-60s chunks, use default margins (5s))
