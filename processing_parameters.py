@@ -3,22 +3,24 @@
 
 ## configurations for pre-processing
     # dict keys are order of preprocessing steps
-    # current custom steps available: "correct_bad_channels" -> detects bad channels, interpolates channels inside brain, removes channels out of brain
-                                    # "spike_interface" -> continues spikeinterface preprocessing pipeline with given parameters
+      # "spike_interface" -> spikeinterface preprocessing pipeline with given steps/parameters, if using multiple times call spike_intreface1, spike_interface2, ...
+      # current custom steps available: "correct_bad_channels" -> detects bad channels, interpolates channels inside brain, removes channels out of brain
+                                        # "detect_and_correct_drift" -> motion correction                         
             # can be seen in CUSTOM_PREPROCESSING_FUNCTION_MAP (in processing_functions.py))
-preprocessing_configurations = {"kilosort4": {"spike_interface": {"highpass_filter": {"n_channel_pad": 60},
+preprocessing_configurations = {"kilosort4": {"spike_interface1": {"highpass_filter": {"freq_min": 300, "filter_order": 3}, # default "freq_min": 300Hz
                                                                   "phase_shift": {}}, # default parameters
-                                                                  "bandpass_filter": {"freq_min": 300, "freq_max": 6000}}, # REMOVE because u have highpass?
-                                                                  # ADD WHITENING, etc.?
-                                              "custom_steps":    {"correct_bad_channels": {"method": "coherence+psd"}, # default method -> "coherence+PSD" # what does IBL use?
-                                                                  "spike_interface": {"highpass_spatial_filter": {}},  # destriping
-                                                                  "detect_and_correct_drift": {"method": "dredge"}}, # motion correction with dredge
-                                "other_sorter": {"spike_interface": {}, # add other sorters here as needed, can also have different custom steps for different sorters if needed
+                                              "correct_bad_channels": {"method": "coherence+psd"}, # default method -> "coherence+PSD", removes channels outside brain, interpolates bad channels inside brain
+                                              "spike_interface2": {"highpass_spatial_filter": {}, # destriping
+                                                                  "whiten": {"dtype": "float32"}}, # DO I NEED ANY PARAMETERS DIFFERENT FROM DEFAULTS HERE?
+                                                                  # what is the correct method for saturation mitiagation?, website says use with caution
+                                              "detect_and_correct_drift": {"method": "dredge"}}, # motion correction with dredge
+                                              # in documentation they recommend not to use whitening before motion correction, but IBL whitens before?
+                                "other_sorter": {"spike_interface1": {}, # add other sorters here as needed, can also have different custom steps for different sorters if needed
                                                  "custom_steps": {}}}
                   
 
 ## configurations for spike sorting
-spike_sorting_configurations = {"kilosort4": {"verbose": True, "progress_bar": True, "skip_kilosort_preprocessing": True, "torch_device": "cuda"}, # WHAT ELSE DO I NEED TO EXCLUDE IF PREPROCESSING DONE BEFORE
+spike_sorting_configurations = {"kilosort4": {"verbose": True, "progress_bar": True, "skip_kilosort_preprocessing": True, "torch_device": "cuda", "do_CAR": False, "do_correction": False}, # WHAT ELSE DO I NEED TO EXCLUDE IF PREPROCESSING DONE BEFORE (do car = False?, do_correction= false?)
                                 "other_sorter": {}} # add configurations for other sorters here as needed
 
 ## configuration for post-processing
@@ -28,12 +30,19 @@ postprocessing_configurations = {"random_spikes": {"max_spikes_per_unit": 500},
                                  "templates": {},
                                  "noise_levels": {},
                                  "spike_amplitudes": {},
+                                 "spike_locations": {},
                                  "unit_locations": {},
+                                 "template_metrics": {},
                                  "quality_metrics": {}}
 
 
 ## thresholds for quality metrics parameters
 curation_thresholds = {} # currently using bombcell's default thresholds, if you want to update these format has to match si_curation.bombcell_get_default_thresholds()
+
+all_processing_configurations = {"preprocessing": preprocessing_configurations,
+                                 "spike_sorting": spike_sorting_configurations,
+                                 "postprocessing": postprocessing_configurations,
+                                 "curation": curation_thresholds}
 
 # %%
 ###### utility code to decide on parameters ######
@@ -41,7 +50,7 @@ curation_thresholds = {} # currently using bombcell's default thresholds, if you
 # import spikeinterface.preprocessing as si_preprocessing
 
 # print(si_preprocessing.pipeline.pp_names_to_functions.keys()) # see what preprocessing steps are available
-# print(si_preprocessing.bandpass_filter.__doc__) # -> see what arguments are available for given preprocessing step
+# print(si_preprocessing.phase_shift.__doc__) # -> see what arguments are available for given preprocessing step
 
 
 ### spike sorting ###

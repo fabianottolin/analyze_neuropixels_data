@@ -1,3 +1,11 @@
+preprocessing -> spike sorting -> postprocessing -> curation -> visualization & QC -> result collection -> NWB packaging
+
+~1h recording -> processing times (with 24 physical cores, NVIDIA RTX A4000)
+- preprocessing: 01:30h
+- spike sorting: 00:30h
+- post processing:
+- curation: 00:00h
+
 processing_parameters.py
 -> processing steps are specified here
 
