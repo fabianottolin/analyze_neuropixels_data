@@ -1,7 +1,7 @@
-- what does spike sorting look like if i turn off verbose?
+-> process 5 recordings per night until all processed and focus on proper analyses for now!!!
+- write check if all data exists for certain probe and skip if overwrite is false in run_processing function
 - visualize pre-processing once done?/save visualization as .png?
 - skip the ones that already have preprocessing data for calculating needed storage space in run preprocessing
-- make process_probe functions methods inside class?
 - function after copying that deletes all empty folders in local dir
 - add option to set use_local_raw_copy = True, if yes then copy raw recording to SSD/local first, read from that, delete again after preprocessing
 	- check if this is faster first
@@ -20,8 +20,12 @@
 - implement manual curation (in phy)
 	- # -> copy to seperate folder, create seperate environment for phy, new script
 - implement LFP pipeline
-	-  LFP extraction -> large chunks & large margins (30-60s chunks, use default margins (5s))
+	-  def LFP_extraction()
+		-> large chunks & large margins (30-60s chunks, use default margins (5s))
 - implement option to split_by for multiple shanks/regions
 - raw spike sorting vs saving via sorted_spikes.save(folder=output_folder.sorting_local, format="numpy_folder") and deleting raw spike sorting?
 - option to read pre-processed recording from final drive in postprocessing?
-- option to copy preprocessed_data before deleting in .run_post_processing()
+- change postprocessing/figures to figures?, not used currently
+- add experiment to NeuropixelsData class and use it when building path?
+- after curation -> visualization & QC -> result collection -> NWB packaging
+- if overwriting postprocessing u may need to remove old folder before copying, otherwise curated folder will lead to error when checking if contents the same, also redo curation then (maybe give warning that u need to redo curation?)

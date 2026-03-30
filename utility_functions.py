@@ -135,6 +135,9 @@ def get_size_of_folders(folders: list):
     return total_size_GB
 
 
+# def delete_empty_folders(directory: Path):
+
+
 
 ### utility classes ###
 
