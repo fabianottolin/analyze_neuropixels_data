@@ -7,9 +7,10 @@
       # current custom steps available: "correct_bad_channels" -> detects bad channels, interpolates channels inside brain, removes channels out of brain
                                         # "detect_and_correct_drift" -> motion correction                         
             # can be seen in CUSTOM_PREPROCESSING_FUNCTION_MAP (in processing_functions.py))
-preprocessing_configurations = {"kilosort4": {"spike_interface1": {"highpass_filter": {"freq_min": 300, "filter_order": 3}, # default "freq_min": 300Hz
+preprocessing_configurations = {"kilosort4": {"lfp_outside_channel_detection": {"plot": True, "outside_threshold": "adaptive"}, # detects outside channels based on LFP and removes them
+                                              "spike_interface1": {"highpass_filter": {"freq_min": 300, "filter_order": 3}, # default "freq_min": 300Hz
                                                                   "phase_shift": {}}, # default parameters
-                                              "correct_bad_channels": {"method": "coherence+psd"}, # default method -> "coherence+PSD", removes channels outside brain, interpolates bad channels inside brain
+                                              "correct_bad_channels": {"method": "coherence+psd"}, # default method -> "coherence+PSD", removes channels outside brain based on AP, interpolates bad channels inside brain
                                               "spike_interface2": {"highpass_spatial_filter": {}, # destriping
                                                                   "whiten": {"dtype": "float32"}}, # DO I NEED ANY PARAMETERS DIFFERENT FROM DEFAULTS HERE?
                                                                   # what is the correct method for saturation mitiagation?, website says use with caution

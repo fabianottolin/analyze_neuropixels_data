@@ -10,6 +10,37 @@ from pprint import pformat
 from typing import Literal
 import gc
 from utility_functions import *
+from visualization_functions import *
+
+
+def lfp_outside_channel_detection(recording, plot = False, **kwargs):
+    """
+    Detects outside channels based on LFP signal and removes them from recording.
+    """
+    from ibldsp.voltage import detect_bad_channels, spikeglx
+
+    # define LFP path
+    recording_path = Path(recording._kwargs["folder_path"])
+    recording_name = recording_path.name
+    probe = recording.stream_id.split(".")[0]
+    path_lfp_binary = recording_path/f"{recording_name}_{probe}"/f"{recording_name}_t0.{probe}.lf.bin"
+
+    # read file
+    sr = spikeglx.Reader(path_lfp_binary)
+    raw = sr[10_300_000:10_310_000, :sr.nc - sr.nsync].T # 300ms sample
+
+    ibl_channel_labels, computed_features = detect_bad_channels(raw, recording.get_sampling_frequency(), **kwargs)
+    outside_indices = np.where(ibl_channel_labels == 3)[0]
+    outside_channel_ids = recording.get_channel_ids()[outside_indices]
+    recording_without_outside_channels = recording.remove_channels(outside_channel_ids) 
+    print(f"Removed {len(outside_channel_ids)} outside channels based on LFP band.")
+    print(f"{recording_without_outside_channels}\n")
+
+    if plot:
+        show_outside_channels(raw, recording.get_sampling_frequency(), ibl_channel_labels, computed_features)
+        plt.show()
+
+    return recording_without_outside_channels
 
 
 def bad_channel_correction(recording, **kwargs): # detects bad channels based on provided kwargs, removes channels outside brain & interpolates bad channels inside brain, prints which channels were removed and reason for removal
@@ -21,7 +52,7 @@ def bad_channel_correction(recording, **kwargs): # detects bad channels based on
 
     outside_channel_ids = [channel_id for channel_id, label in zip(bad_channel_ids, bad_channel_labels) if label == "out"]
     recording_without_outside_channels = recording.remove_channels(outside_channel_ids) # remove channels outside brain
-    print(f"Removed {len(outside_channel_ids)} outside channels")
+    print(f"Removed {len(outside_channel_ids)} outside channels based on AP band.")
 
     other_bad_channel_ids = list(set(bad_channel_ids) - set(outside_channel_ids)) # remaining bad channels inside brain -> interpolate
     recording_corrected_channels = si_preprocessing.interpolate_bad_channels(recording_without_outside_channels, other_bad_channel_ids)
@@ -70,7 +101,8 @@ def print_parameter_information(step, step_parameters, spike_sorter=None, curati
 
 def apply_preprocessing(recording, custom_preprocessing_parameters):
     CUSTOM_PREPROCESSING_FUNCTION_MAP = {"correct_bad_channels": bad_channel_correction,
-                                     "detect_and_correct_drift": detect_and_correct_drift} # custom processing function names should not start with "spike_interface"!
+                                     "detect_and_correct_drift": detect_and_correct_drift,
+                                     "lfp_outside_channel_detection": lfp_outside_channel_detection} # custom processing function names should not start with "spike_interface"!
     
     for step_name, step_parameters in custom_preprocessing_parameters.items():
         if step_name.startswith("spike_interface"):

@@ -1,5 +1,8 @@
 -> process 5 recordings per night until all processed and focus on proper analyses for now!!!
 - write check if all data exists for certain probe and skip if overwrite is false in run_processing function
+	- prevents separate checks for all steps
+- make sure overwriting works, create option to write new file instead
+	- maybe existing_files: ["overwrite", "keep", "skip_step"]
 - visualize pre-processing once done?/save visualization as .png?
 - skip the ones that already have preprocessing data for calculating needed storage space in run preprocessing
 - function after copying that deletes all empty folders in local dir
