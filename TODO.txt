@@ -1,34 +1,47 @@
+## high priority ##
 -> process 5 recordings per night until all processed and focus on proper analyses for now!!!
-- write check if all data exists for certain probe and skip if overwrite is false in run_processing function
-	- prevents separate checks for all steps
+- save visualization of channel removal as .png
+- add & save visualization of curation
 - make sure overwriting works, create option to write new file instead
 	- maybe existing_files: ["overwrite", "keep", "skip_step"]
-- visualize pre-processing once done?/save visualization as .png?
+	- overwrite option for spike sorting
+	- multiple times sorting & repeat_sorting = true -> new folder called sorting_n, can reuse matlab function?
+		- if spike_sorting exists go up to folder.parent, make new subfolder based on how many sorters of that name in parent, prefix, reassign output_folders.xyz
+		- or make this a function in OutputPaths class (e.g.: output_folders.new_iteration() if exist already)
+	- if overwriting postprocessing u may need to remove old folder before copying, otherwise curated folder will lead to error when checking if contents the same, also redo curation then (maybe give warning that u need to redo curation?)
+- saturation mitigation? -> what is correct way to implement this?, maybe latest spikeinterface release has it implemented?
+
+## regular ##
+- write check if all data exists for certain probe and skip if overwrite is false in run_processing function
+	- prevents separate checks for all steps
+- visualization
+	- visualize pre-processing once done?/save visualization as .png?
+	- save visualizations to given path
+	- change postprocessing/figures to figures?, not used currently
 - skip the ones that already have preprocessing data for calculating needed storage space in run preprocessing
 - function after copying that deletes all empty folders in local dir
-- add option to set use_local_raw_copy = True, if yes then copy raw recording to SSD/local first, read from that, delete again after preprocessing
+- add option to set use_local_raw_copy = True (in preprocessing), if yes then copy raw recording to SSD/local first, read from that, delete again after preprocessing
 	- check if this is faster first
 - upgrade check_folder_strucutre function so it takes list for parent and subfolders
 - pip install pynvml in environment, create proper environemnt file with torch --index url
-- multiple times sorting & repeat_sorting = true -> new folder called sorting_n, can reuse matlab function?
-	- if spike_sorting exists go up to folder.parent, make new subfolder based on how many sorters of that name in parent, prefix, reassign output_folders.xyz
-	- or make this a function in OutputPaths class (e.g.: output_folders.new_iteration() if exist already)
 - implement raw data quality metrics
-- saturation mitigation? -> what is correct way to implement this?
-- implement comparison of 2 sorters
-	- comparison = si_comparison.compare_two_sorters(sorting1, sorting2) # also possible to compare more via .comapre_multiple_sorters
-	- # when comparing 2 sorters you can extract basesorting -> units agreed on
-		- sorting_agreed = comparison.get_agreement_sorting(minimum_agreement_count)
-	- compare spike sorters for IC
 - implement manual curation (in phy)
 	- # -> copy to seperate folder, create seperate environment for phy, new script
 - implement LFP pipeline
 	-  def LFP_extraction()
 		-> large chunks & large margins (30-60s chunks, use default margins (5s))
-- implement option to split_by for multiple shanks/regions
-- raw spike sorting vs saving via sorted_spikes.save(folder=output_folder.sorting_local, format="numpy_folder") and deleting raw spike sorting?
 - option to read pre-processed recording from final drive in postprocessing?
-- change postprocessing/figures to figures?, not used currently
-- add experiment to NeuropixelsData class and use it when building path?
 - after curation -> visualization & QC -> result collection -> NWB packaging
-- if overwriting postprocessing u may need to remove old folder before copying, otherwise curated folder will lead to error when checking if contents the same, also redo curation then (maybe give warning that u need to redo curation?)
+- make lfp function usable at other places in pipeline, maybe all annotations = true when loading raw is enough so you later have access to stream info etc.
+
+## mid-term/before next experiments ##
+- add experiment to NeuropixelsData class and use it when building path?
+- implement option to split_by for multiple shanks/regions
+
+## low priority ##
+- raw spike sorting vs saving via sorted_spikes.save(folder=output_folder.sorting_local, format="numpy_folder") and deleting raw spike sorting?
+- implement comparison of 2 sorters
+	- comparison = si_comparison.compare_two_sorters(sorting1, sorting2) # also possible to compare more via .comapre_multiple_sorters
+	- # when comparing 2 sorters you can extract basesorting -> units agreed on
+		- sorting_agreed = comparison.get_agreement_sorting(minimum_agreement_count)
+	- compare spike sorters for IC
