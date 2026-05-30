@@ -148,3 +148,4 @@ class OutputPaths:
         self.sorting_final = final_output_folder/"recordings_spike_sorted"/recording/probe/spike_sorter
         self.analyzer_local = local_output_folder/"sorting_analyzers"/recording/probe/spike_sorter
         self.analyzer_final = final_output_folder/"sorting_analyzers"/recording/probe/spike_sorter
+        self.figures = final_output_folder/"figures"/recording/probe/spike_sorter

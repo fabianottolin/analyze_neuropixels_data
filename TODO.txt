@@ -1,4 +1,5 @@
 ## high priority ##
+# add classification of bombcell! check if it worked!
 -> process 5 recordings per night until all processed and focus on proper analyses for now!!!
 - save visualization of channel removal as .png
 - add & save visualization of curation
@@ -45,3 +46,5 @@
 	- # when comparing 2 sorters you can extract basesorting -> units agreed on
 		- sorting_agreed = comparison.get_agreement_sorting(minimum_agreement_count)
 	- compare spike sorters for IC
+- make available as pip
+	- alternative name if taken: signal processing, universal graphs and analysis routines commonly applied in neuropixels experiments (sugarcane)

@@ -1,4 +1,4 @@
-# Common analysis pipeline for neuropixels experiments: signal processing, universal graphs and other analyses routines (cane_sugar)
+# Common analysis pipeline for Neuropixels experiments: Signal processing, universal graphs and other analysis routines (cane_sugar)
 Automated pipeline for processing Neuropixels data with spikeinterface based on parameters specified in processing_parameters.py
 
 ## Overview

@@ -13,7 +13,7 @@ from utility_functions import *
 from visualization_functions import *
 
 
-def lfp_outside_channel_detection(recording, plot = False, **kwargs):
+def lfp_outside_channel_detection(recording, plot = False, figure_path = None, **kwargs):
     """
     Detects outside channels based on LFP signal and removes them from recording.
     """
@@ -37,8 +37,11 @@ def lfp_outside_channel_detection(recording, plot = False, **kwargs):
     print(f"{recording_without_outside_channels}\n")
 
     if plot:
-        show_outside_channels(raw, recording.get_sampling_frequency(), ibl_channel_labels, computed_features)
+        fig, ax = show_outside_channels(raw, recording.get_sampling_frequency(), ibl_channel_labels, computed_features)
         plt.show()
+        figure_path.mkdir(parents=True, exist_ok=True)
+        fig.savefig(figure_path/"LFP_outside_channel_detection.png", dpi=300)
+        print(f"Figure saved under {figure_path/'LFP_outside_channel_detection.png'}")
 
     return recording_without_outside_channels
 
@@ -99,17 +102,24 @@ def print_parameter_information(step, step_parameters, spike_sorter=None, curati
             print(f"{"-"*60}\n")
 
 
-def apply_preprocessing(recording, custom_preprocessing_parameters):
+def apply_preprocessing(recording, custom_preprocessing_parameters, figures_output_path):
     CUSTOM_PREPROCESSING_FUNCTION_MAP = {"correct_bad_channels": bad_channel_correction,
                                      "detect_and_correct_drift": detect_and_correct_drift,
                                      "lfp_outside_channel_detection": lfp_outside_channel_detection} # custom processing function names should not start with "spike_interface"!
     
+    STEPS_WITH_PLOTS = ["lfp_outside_channel_detection"] # specify which steps have plots to save figures in correct folder
+
     for step_name, step_parameters in custom_preprocessing_parameters.items():
         if step_name.startswith("spike_interface"):
             processing_function = continue_si_pipeline # spikeinterface preprocessing functions
         else:
             processing_function = CUSTOM_PREPROCESSING_FUNCTION_MAP[step_name]
+        
+        if step_name in STEPS_WITH_PLOTS:
+            step_parameters["figure_path"] = figures_output_path
+        
         recording = processing_function(recording, **step_parameters)
+
     return recording
 
 
@@ -136,7 +146,7 @@ class NeuropixelsData:
             raw_recording = si_extractors.read_spikeglx(recording, stream_id=probe) # load recording                
             print(raw_recording)
             
-            preprocessed_recording = apply_preprocessing(raw_recording, preprocessing_parameters)
+            preprocessed_recording = apply_preprocessing(raw_recording, preprocessing_parameters, output_folder.figures)
 
             # save pre-processed recording as binary file on local drive; needed for kilosort, for other spike sorters may be faster to continue working with recording in memory
             preprocessed_recording.save(folder = output_folder.preprocessing, format="binary") # assign saved_preprocessed_recording if you want to continue directly afterwards
@@ -323,6 +333,7 @@ class NeuropixelsData:
                 bombcell_labels = si_curation.bombcell_label_units(sorting_analyzer, thresholds=curation_thresholds, label_non_somatic=True, split_non_somatic_good_mua=True)
                 print(bombcell_labels["bombcell_label"].value_counts()) # classification result (mua, noise, good, non_soma_mua)
                 non_noisy_units = bombcell_labels["bombcell_label"] != "noise"
+                sorting_analyzer.sorting.set_property('bombcell_label', bombcell_labels['bombcell_label'])
             case "simple_thresholds":
                 all_metrics = sorting_analyzer.get_metrics_extension_data()
                 curation_labels = si_curation.threshold_metrics_label_units(all_metrics, thresholds=curation_thresholds, column_name="simple_threshold")
@@ -330,7 +341,8 @@ class NeuropixelsData:
                 non_noisy_units = curation_labels["simple_threshold"] != "noise"
             case _:
                 raise ValueError(f"Curation method {method} not recognized.\n   Please choose from: bombcell , simple_thresholds")
-            
+        
+        # TODO: plot waveforms bombcell?
         sorting_analyzer_curated = sorting_analyzer.select_units(sorting_analyzer.unit_ids[non_noisy_units]) # remove noisy units
         sorting_analyzer_curated.save_as(folder=output_folder.analyzer_final/"curated", format="binary_folder")
         print(f"Curated sorting analyzer saved under {output_folder.analyzer_final/'curated'}.\n")
