@@ -9,6 +9,7 @@ import numpy as np
 from pprint import pformat
 from typing import Literal
 import gc
+import copy
 from utility_functions import *
 from visualization_functions import *
 
@@ -102,6 +103,24 @@ def print_parameter_information(step, step_parameters, spike_sorter=None, curati
             print(f"{"-"*60}\n")
 
 
+def pre_preprocessing(recording, custom_preprocessing_parameters):
+    custom_preprocessing_parameters = copy.deepcopy(custom_preprocessing_parameters) # prevents overwriting original dict
+    saturation_parameters = custom_preprocessing_parameters.pop("detect_saturation_periods", None) # doesnt work for multiple runs
+    if saturation_parameters is not None:
+        print("Detecting saturation periods...")
+        saturation_periods = si_preprocessing.detect_saturation_periods(recording, **saturation_parameters)
+            
+        for step_name, step_values in custom_preprocessing_parameters.items():
+            if step_name.startswith("spike_interface") and ("silence_periods" in step_values): # silence periods is spikeinterface preprocessing step, so will be nested in spike_interface step
+                step_values["silence_periods"]["periods"] = saturation_periods
+                return custom_preprocessing_parameters
+            
+        raise ValueError("Pipeline detects saturation periods but doesn't silence them." \
+                         "Either remove 'detect_saturation_periods' from preprocessing parameters or add 'silence_periods' to handle detected saturation.")
+
+    return custom_preprocessing_parameters
+
+
 def apply_preprocessing(recording, custom_preprocessing_parameters, figures_output_path):
     CUSTOM_PREPROCESSING_FUNCTION_MAP = {"correct_bad_channels": bad_channel_correction,
                                      "detect_and_correct_drift": detect_and_correct_drift,
@@ -111,7 +130,7 @@ def apply_preprocessing(recording, custom_preprocessing_parameters, figures_outp
 
     for step_name, step_parameters in custom_preprocessing_parameters.items():
         if step_name.startswith("spike_interface"):
-            processing_function = continue_si_pipeline # spikeinterface preprocessing functions
+            processing_function = continue_si_pipeline # spikeinterface preprocessing functions 
         else:
             processing_function = CUSTOM_PREPROCESSING_FUNCTION_MAP[step_name]
         
@@ -146,6 +165,7 @@ class NeuropixelsData:
             raw_recording = si_extractors.read_spikeglx(recording, stream_id=probe) # load recording                
             print(raw_recording)
             
+            preprocessing_parameters = pre_preprocessing(raw_recording, preprocessing_parameters)
             preprocessed_recording = apply_preprocessing(raw_recording, preprocessing_parameters, output_folder.figures)
 
             # save pre-processed recording as binary file on local drive; needed for kilosort, for other spike sorters may be faster to continue working with recording in memory
@@ -201,11 +221,11 @@ class NeuropixelsData:
                 pass
 
 
-    def _spike_sort_probe(self, output_folder: OutputPaths, spike_sorter, spike_sorting_parameters):
+    def _spike_sort_probe(self, output_folder: OutputPaths, spike_sorter, spike_sorting_parameters, overwrite_existing_files = False):
         spike_sorting_exists = is_folder_with_files(output_folder.sorting_local) or is_folder_with_files(output_folder.sorting_final) # check if there is already spike sorting output for current recording/probe
         preprocessing_file_exists = is_folder_with_files(output_folder.preprocessing) # check if data has been preprocessed
 
-        if not spike_sorting_exists and preprocessing_file_exists: # run spike sorting        
+        if (overwrite_existing_files or not spike_sorting_exists) and preprocessing_file_exists: # run spike sorting
             saved_preprocessed_recording = si.load(output_folder.preprocessing) # load preprocessed recording
             sorted_spikes = si_sorters.run_sorter(sorter_name=spike_sorter, recording=saved_preprocessed_recording, folder = output_folder.sorting_local, **spike_sorting_parameters) # set other parameters here if different from default sorter parameters, you can pass a full dict with the parameters
             close_logger() # spike interface isnt properly closing kilosort4 logger, necesarry to close it here so data can be copied
@@ -217,12 +237,13 @@ class NeuropixelsData:
             print(f"\033[33mWarning: Already spike sorted data of probe with {spike_sorter} before, skipping\033[0m\n")
 
 
-    def run_spike_sorting(self, spike_sorting_configurations):
+    def run_spike_sorting(self, spike_sorting_configurations, overwrite_existing_files = False):
         """
         Runs spike sorting for each probe in NeuropixelsData.recordings_to_process according to specified parameters in spike_sorting_configurations (defined in processing_parameters.py)
 
         ------ Parameters ------
         spike_sorting_configurations: dict
+        overwrite_existing_files: bool
         """
 
         spike_sorting_parameters = get_parameters_for_sorter(self.spike_sorter, spike_sorting_configurations) # load corresponding parameters (defined in processing parameters.py)
@@ -245,7 +266,7 @@ class NeuropixelsData:
 
                 output_folder = OutputPaths(self.local_output_folder, self.final_output_folder, recording_path.name, probe_stream, self.spike_sorter)
 
-                self._spike_sort_probe(output_folder, self.spike_sorter, spike_sorting_parameters)
+                self._spike_sort_probe(output_folder, self.spike_sorter, spike_sorting_parameters, overwrite_existing_files)
 
 
     def _postprocess_probe(self, output_folder, postprocessing_configurations, handle_preprocessed_recording: Literal["copy", "delete", "keep"] = "copy", delete_raw_spike_sorting = False, overwrite_existing_files = False):
@@ -343,6 +364,9 @@ class NeuropixelsData:
                 raise ValueError(f"Curation method {method} not recognized.\n   Please choose from: bombcell , simple_thresholds")
         
         # TODO: plot waveforms bombcell?
+        # import spikeinterface.widgets as si_widgets
+        # bombcell_plot = si_widgets.plot_unit_labels(sorting_analyzer, bombcell_labels["bombcell_label"], ylims=(-300, 100))
+        # bombcell_plot.figure.suptitle(f"Bombcell label")
         sorting_analyzer_curated = sorting_analyzer.select_units(sorting_analyzer.unit_ids[non_noisy_units]) # remove noisy units
         sorting_analyzer_curated.save_as(folder=output_folder.analyzer_final/"curated", format="binary_folder")
         print(f"Curated sorting analyzer saved under {output_folder.analyzer_final/'curated'}.\n")
@@ -448,7 +472,7 @@ class NeuropixelsData:
                 if preprocessing:
                     self._preprocess_probe(recording_path, probe_stream, output_folder, preprocessing_parameters, overwrite_existing_files = overwrite_existing_files)
                 if spike_sorting:
-                    self._spike_sort_probe(output_folder, self.spike_sorter, spike_sorting_parameters)
+                    self._spike_sort_probe(output_folder, self.spike_sorter, spike_sorting_parameters, overwrite_existing_files = overwrite_existing_files)
                 if postprocessing:
                     self._postprocess_probe(output_folder, postprocessing_configurations, handle_preprocessed_recording, delete_raw_spike_sorting, overwrite_existing_files) # run postprocessing for current probe
                 if curation_method:

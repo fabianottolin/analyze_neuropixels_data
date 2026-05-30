@@ -1,7 +1,5 @@
 ## high priority ##
 # add classification of bombcell! check if it worked!
--> process 5 recordings per night until all processed and focus on proper analyses for now!!!
-- save visualization of channel removal as .png
 - add & save visualization of curation
 - make sure overwriting works, create option to write new file instead
 	- maybe existing_files: ["overwrite", "keep", "skip_step"]
