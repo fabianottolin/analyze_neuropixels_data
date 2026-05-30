@@ -2,6 +2,7 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+import spikeinterface.widgets as si_widgets
 
 
 def show_outside_channels(raw, fs, channel_labels, xfeats):
@@ -26,3 +27,15 @@ def show_outside_channels(raw, fs, channel_labels, xfeats):
     fig.tight_layout()
 
     return fig, ax
+
+
+def curation_plot(sorting_analyzer, curation_method, curation_labels, output_folder):
+    curation_plot = si_widgets.plot_unit_labels(sorting_analyzer, curation_labels, ylims=(-300, 100))
+    curation_plot.figure.suptitle(f"{curation_method} label")
+    plt.show()
+    filepath = output_folder.figures_folder/f"curation_{curation_method}"/f"{output_folder.recording_identifier}_curation.png"
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    curation_plot.figure.savefig(filepath, dpi=300)
+    print(f"Figure saved under '{filepath}'")
+
+    # if method bombcell theres more plots I could add in future

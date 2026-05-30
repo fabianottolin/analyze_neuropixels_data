@@ -1,14 +1,6 @@
 ## high priority ##
-# add classification of bombcell! check if it worked!
-- add & save visualization of curation
-- make sure overwriting works, create option to write new file instead
-	- maybe existing_files: ["overwrite", "keep", "skip_step"]
-	- overwrite option for spike sorting
-	- multiple times sorting & repeat_sorting = true -> new folder called sorting_n, can reuse matlab function?
-		- if spike_sorting exists go up to folder.parent, make new subfolder based on how many sorters of that name in parent, prefix, reassign output_folders.xyz
-		- or make this a function in OutputPaths class (e.g.: output_folders.new_iteration() if exist already)
-	- if overwriting postprocessing u may need to remove old folder before copying, otherwise curated folder will lead to error when checking if contents the same, also redo curation then (maybe give warning that u need to redo curation?)
-- saturation mitigation? -> what is correct way to implement this?, maybe latest spikeinterface release has it implemented?
+# check if adding bombcell classification to sorting analyzer worked!
+- did printing & saving bombcell visualization work?
 
 ## regular ##
 - write check if all data exists for certain probe and skip if overwrite is false in run_processing function
@@ -38,6 +30,11 @@
 - implement option to split_by for multiple shanks/regions
 
 ## low priority ##
+- create option to write new file instead
+	- maybe existing_files: ["overwrite", "keep", "skip_step"]
+	- multiple times sorting & repeat_sorting = true -> new folder called sorting_n, can reuse matlab function?
+		- if spike_sorting exists go up to folder.parent, make new subfolder based on how many sorters of that name in parent, prefix, reassign output_folders.xyz
+		- or make this a function in OutputPaths class (e.g.: output_folders.new_iteration() if exist already)
 - raw spike sorting vs saving via sorted_spikes.save(folder=output_folder.sorting_local, format="numpy_folder") and deleting raw spike sorting?
 - implement comparison of 2 sorters
 	- comparison = si_comparison.compare_two_sorters(sorting1, sorting2) # also possible to compare more via .comapre_multiple_sorters

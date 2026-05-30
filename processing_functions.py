@@ -14,7 +14,7 @@ from utility_functions import *
 from visualization_functions import *
 
 
-def lfp_outside_channel_detection(recording, plot = False, figure_path = None, **kwargs):
+def lfp_outside_channel_detection(recording, plot = False, output = None, **kwargs):
     """
     Detects outside channels based on LFP signal and removes them from recording.
     """
@@ -40,9 +40,9 @@ def lfp_outside_channel_detection(recording, plot = False, figure_path = None, *
     if plot:
         fig, ax = show_outside_channels(raw, recording.get_sampling_frequency(), ibl_channel_labels, computed_features)
         plt.show()
-        figure_path.mkdir(parents=True, exist_ok=True)
-        fig.savefig(figure_path/"LFP_outside_channel_detection.png", dpi=300)
-        print(f"Figure saved under {figure_path/'LFP_outside_channel_detection.png'}")
+        output.figures_folder/"LFP_outside_channel_detection".mkdir(parents=True, exist_ok=True)
+        fig.savefig(output.figures_folder/"LFP_outside_channel_detection"/f"{output.recording_identifier}_LFP_outside_channel_detection.png", dpi=300)
+        print(f"Figure saved under '{output.figures_folder/output.recording_identifier}_LFP_outside_channel_detection.png'")
 
     return recording_without_outside_channels
 
@@ -121,7 +121,7 @@ def pre_preprocessing(recording, custom_preprocessing_parameters):
     return custom_preprocessing_parameters
 
 
-def apply_preprocessing(recording, custom_preprocessing_parameters, figures_output_path):
+def apply_preprocessing(recording, custom_preprocessing_parameters, figure_output_information):
     CUSTOM_PREPROCESSING_FUNCTION_MAP = {"correct_bad_channels": bad_channel_correction,
                                      "detect_and_correct_drift": detect_and_correct_drift,
                                      "lfp_outside_channel_detection": lfp_outside_channel_detection} # custom processing function names should not start with "spike_interface"!
@@ -135,7 +135,7 @@ def apply_preprocessing(recording, custom_preprocessing_parameters, figures_outp
             processing_function = CUSTOM_PREPROCESSING_FUNCTION_MAP[step_name]
         
         if step_name in STEPS_WITH_PLOTS:
-            step_parameters["figure_path"] = figures_output_path
+            step_parameters["figure_path"] = figure_output_information
         
         recording = processing_function(recording, **step_parameters)
 
@@ -166,7 +166,7 @@ class NeuropixelsData:
             print(raw_recording)
             
             preprocessing_parameters = pre_preprocessing(raw_recording, preprocessing_parameters)
-            preprocessed_recording = apply_preprocessing(raw_recording, preprocessing_parameters, output_folder.figures)
+            preprocessed_recording = apply_preprocessing(raw_recording, preprocessing_parameters, output_folder)
 
             # save pre-processed recording as binary file on local drive; needed for kilosort, for other spike sorters may be faster to continue working with recording in memory
             preprocessed_recording.save(folder = output_folder.preprocessing, format="binary") # assign saved_preprocessed_recording if you want to continue directly afterwards
@@ -269,7 +269,8 @@ class NeuropixelsData:
                 self._spike_sort_probe(output_folder, self.spike_sorter, spike_sorting_parameters, overwrite_existing_files)
 
 
-    def _postprocess_probe(self, output_folder, postprocessing_configurations, handle_preprocessed_recording: Literal["copy", "delete", "keep"] = "copy", delete_raw_spike_sorting = False, overwrite_existing_files = False):
+    def _postprocess_probe(self, output_folder, postprocessing_configurations, handle_preprocessed_recording: Literal["copy", "delete", "keep"] = "copy", 
+                           delete_raw_spike_sorting = False, overwrite_existing_files = False):
         preprocessing_file_exists = is_folder_with_files(output_folder.preprocessing) # check if data has been preprocessed
         spike_sorting_exists = is_folder_with_files(output_folder.sorting_final) # check if there is spike sorting output for current recording/probe
         post_processing_exists = is_folder_with_files(output_folder.analyzer_local) or is_folder_with_files(output_folder.analyzer_final) # check if there is already post-processing output for current recording/probe
@@ -294,6 +295,10 @@ class NeuropixelsData:
         print("Computing extensions...")
         sorting_analyzer.compute(postprocessing_configurations)
         sorting_analyzer.save_as(folder=output_folder.analyzer_local, format="binary_folder") # save
+        
+        if (output_folder.curation).exists(): # delete previous curation if it exists
+            shutil.rmtree(output_folder.curation)
+            # warning
         copy_data(output_folder.analyzer_local, output_folder.analyzer_final)
 
         if data_exists:
@@ -310,8 +315,11 @@ class NeuropixelsData:
         ------ Parameters ------
         postprocessing_configurations: dict
         handle_preprocessed_recording: str (default: "copy")
-            Decides what is done with preprocessed recording after finishing processing
+            Decides what is done with preprocessed recording after finishing postprocessing
             Options: "copy", "delete", "keep"
+                "copy" -> copies pre-processed recording to final output folder and removes it from local output folder
+                "delete" -> deletes pre-processed recording permanently
+                "keep" -> pre-processed recording remains in local output folder only
         delete_raw_spike_sorting: bool (default: False)
             If True, deletes raw spike sorting data after creating sorting analyzer
         overwrite_existing_files: bool (default: False)
@@ -319,8 +327,8 @@ class NeuropixelsData:
         """
 
         ## check folder structure for postprocessing
-        check_folder_structure(self.local_output_folder, ["sorting_analyzers", "postprocessing/figures"])
-        check_folder_structure(self.final_output_folder, ["sorting_analyzers", "postprocessing/figures"])
+        check_folder_structure(self.local_output_folder, ["sorting_analyzers"])
+        check_folder_structure(self.final_output_folder, ["sorting_analyzers"])
 
         print_parameter_information("postprocessing", postprocessing_configurations)
 
@@ -336,7 +344,7 @@ class NeuropixelsData:
                 self._postprocess_probe(output_folder, postprocessing_configurations, handle_preprocessed_recording, delete_raw_spike_sorting, overwrite_existing_files = overwrite_existing_files) # run postprocessing for current probe
 
 
-    def _curate_probe(self, output_folder, method, curation_thresholds):
+    def _curate_probe(self, output_folder, method, curation_thresholds, plot = True, overwrite_existing_files = False):
         # check if analyzer exists
         if is_folder_with_files(output_folder.analyzer_final):
             sorting_analyzer = si.load(output_folder.analyzer_final)
@@ -344,35 +352,36 @@ class NeuropixelsData:
             print(f"\033[31mWarning: No corresponding sorting analyzer found for probe, skipping\033[0m\n")
             return
         
-        if is_folder_with_files(output_folder.analyzer_final/'curated'):
+        if is_folder_with_files(output_folder.curation) and not overwrite_existing_files:
             print(f"\033[33mWarning: Already curated data of probe before, skipping\033[0m\n")
             return
-
 
         match method:
             case "bombcell":
                 bombcell_labels = si_curation.bombcell_label_units(sorting_analyzer, thresholds=curation_thresholds, label_non_somatic=True, split_non_somatic_good_mua=True)
-                print(bombcell_labels["bombcell_label"].value_counts()) # classification result (mua, noise, good, non_soma_mua)
-                non_noisy_units = bombcell_labels["bombcell_label"] != "noise"
-                sorting_analyzer.sorting.set_property('bombcell_label', bombcell_labels['bombcell_label'])
+                curation_labels = bombcell_labels["bombcell_label"]
+                print(curation_labels.value_counts()) # classification result (mua, noise, good, non_soma_mua)
+                non_noisy_units = curation_labels != "noise"
             case "simple_thresholds":
                 all_metrics = sorting_analyzer.get_metrics_extension_data()
-                curation_labels = si_curation.threshold_metrics_label_units(all_metrics, thresholds=curation_thresholds, column_name="simple_threshold")
-                print(curation_labels["simple_threshold"].value_counts()) # classification result (good, noise)
-                non_noisy_units = curation_labels["simple_threshold"] != "noise"
+                simple_thresholds_labels = si_curation.threshold_metrics_label_units(all_metrics, thresholds=curation_thresholds, column_name="simple_threshold")
+                curation_labels = simple_thresholds_labels["simple_threshold"]
+                print(curation_labels.value_counts()) # classification result (good, noise)
+                non_noisy_units = curation_labels != "noise"
             case _:
                 raise ValueError(f"Curation method {method} not recognized.\n   Please choose from: bombcell , simple_thresholds")
-        
-        # TODO: plot waveforms bombcell?
-        # import spikeinterface.widgets as si_widgets
-        # bombcell_plot = si_widgets.plot_unit_labels(sorting_analyzer, bombcell_labels["bombcell_label"], ylims=(-300, 100))
-        # bombcell_plot.figure.suptitle(f"Bombcell label")
+            
+        sorting_analyzer.sorting.set_property(f'{method}_label', curation_labels)
+            
+        if plot:
+            curation_plot(sorting_analyzer, method, curation_labels, output_folder)
+
         sorting_analyzer_curated = sorting_analyzer.select_units(sorting_analyzer.unit_ids[non_noisy_units]) # remove noisy units
-        sorting_analyzer_curated.save_as(folder=output_folder.analyzer_final/"curated", format="binary_folder")
-        print(f"Curated sorting analyzer saved under {output_folder.analyzer_final/'curated'}.\n")
+        sorting_analyzer_curated.save_as(folder=output_folder.curation, format="binary_folder")
+        print(f"Curated sorting analyzer saved under {output_folder.curation}.\n")
 
 
-    def automatic_curation(self, method, curation_thresholds):
+    def automatic_curation(self, method, curation_thresholds, plot = True, overwrite_existing_files = False):
         """
         Runs automatic curation for each probe in NeuropixelsData.recordings_to_process according to specified method and parameters in curation_thresholds (defined in processing_parameters.py)
 
@@ -398,10 +407,11 @@ class NeuropixelsData:
 
                 output_folder = OutputPaths(self.local_output_folder, self.final_output_folder, recording_path.name, probe_stream, self.spike_sorter)
 
-                self._curate_probe(output_folder, method, curation_thresholds)
+                self._curate_probe(output_folder, method, curation_thresholds, plot = plot, overwrite_existing_files = overwrite_existing_files)
 
 
-    def run_processing_pipeline(self, all_configurations: dict, preprocessing = True, spike_sorting = True, postprocessing = True, curation_method = None, handle_preprocessed_recording: Literal["copy", "delete", "keep"] = "copy", delete_raw_spike_sorting = False, overwrite_existing_files = False):
+    def run_processing_pipeline(self, all_configurations: dict, preprocessing = True, spike_sorting = True, postprocessing = True, curation_method = None,
+                                handle_preprocessed_recording: Literal["copy", "delete", "keep"] = "copy", delete_raw_spike_sorting = False, overwrite_existing_files = False):
         """
         Runs specified processing steps in order for each probe in NeuropixelsData.recordings_to_process
             Pre-processing -> spike sorting -> post-processing -> curation
@@ -476,7 +486,7 @@ class NeuropixelsData:
                 if postprocessing:
                     self._postprocess_probe(output_folder, postprocessing_configurations, handle_preprocessed_recording, delete_raw_spike_sorting, overwrite_existing_files) # run postprocessing for current probe
                 if curation_method:
-                    self._curate_probe(output_folder, curation_method, curation_thresholds)
+                    self._curate_probe(output_folder, curation_method, curation_thresholds, overwrite_existing_files = overwrite_existing_files) # run curation for current probe
 
                 if preprocessing and not postprocessing: # usually handled in self._postprocess_probe:
                     self._handle_preprocessed_recording(output_folder, handle_preprocessed_recording)
