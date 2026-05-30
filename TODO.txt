@@ -1,6 +1,7 @@
 ## high priority ##
 # check if adding bombcell classification to sorting analyzer worked!
-- did printing & saving bombcell visualization work?
+- implement raw data quality metrics
+- implement option to split_by for multiple shanks/regions
 
 ## regular ##
 - write check if all data exists for certain probe and skip if overwrite is false in run_processing function
@@ -15,7 +16,6 @@
 	- check if this is faster first
 - upgrade check_folder_strucutre function so it takes list for parent and subfolders
 - pip install pynvml in environment, create proper environemnt file with torch --index url
-- implement raw data quality metrics
 - implement manual curation (in phy)
 	- # -> copy to seperate folder, create seperate environment for phy, new script
 - implement LFP pipeline
@@ -27,7 +27,6 @@
 
 ## mid-term/before next experiments ##
 - add experiment to NeuropixelsData class and use it when building path?
-- implement option to split_by for multiple shanks/regions
 
 ## low priority ##
 - create option to write new file instead

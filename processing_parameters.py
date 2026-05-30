@@ -20,7 +20,7 @@ preprocessing_configurations = {"kilosort4": {"detect_saturation_periods": {"sat
                                               # in documentation they recommend not to use whitening before motion correction, but IBL whitens before?
                                 "other_sorter": {"spike_interface1": {}, # add other sorters here as needed, can also have different custom steps for different sorters if needed
                                                  "custom_steps": {}}}
-                  
+
 
 ## configurations for spike sorting
 spike_sorting_configurations = {"kilosort4": {"verbose": True, "progress_bar": True, "skip_kilosort_preprocessing": True, "torch_device": "cuda", "do_CAR": False, "do_correction": False}, # WHAT ELSE DO I NEED TO EXCLUDE IF PREPROCESSING DONE BEFORE (do car = False?, do_correction= false?)

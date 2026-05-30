@@ -40,7 +40,7 @@ def lfp_outside_channel_detection(recording, plot = False, output = None, **kwar
     if plot:
         fig, ax = show_outside_channels(raw, recording.get_sampling_frequency(), ibl_channel_labels, computed_features)
         plt.show()
-        output.figures_folder/"LFP_outside_channel_detection".mkdir(parents=True, exist_ok=True)
+        (output.figures_folder/"LFP_outside_channel_detection").mkdir(parents=True, exist_ok=True)
         fig.savefig(output.figures_folder/"LFP_outside_channel_detection"/f"{output.recording_identifier}_LFP_outside_channel_detection.png", dpi=300)
         print(f"Figure saved under '{output.figures_folder/output.recording_identifier}_LFP_outside_channel_detection.png'")
 
@@ -135,7 +135,7 @@ def apply_preprocessing(recording, custom_preprocessing_parameters, figure_outpu
             processing_function = CUSTOM_PREPROCESSING_FUNCTION_MAP[step_name]
         
         if step_name in STEPS_WITH_PLOTS:
-            step_parameters["figure_path"] = figure_output_information
+            step_parameters["output"] = figure_output_information
         
         recording = processing_function(recording, **step_parameters)
 
