@@ -12,33 +12,64 @@ import gc
 import copy
 from utility_functions import *
 from visualization_functions import *
+from manual_outside_channel_detector import manual_outside_channel_detector
 
 
-def lfp_outside_channel_detection(recording, plot = False, output = None, **kwargs):
+def lfp_outside_channel_detection(recording, plot = False, output = None, method = "ibl", **kwargs):
     """
     Detects outside channels based on LFP signal and removes them from recording.
     """
     from ibldsp.voltage import detect_bad_channels, spikeglx
 
-    # define LFP path
-    recording_path = Path(recording._kwargs["folder_path"])
-    recording_name = recording_path.name
-    probe = recording.stream_id.split(".")[0]
-    path_lfp_binary = recording_path/f"{recording_name}_{probe}"/f"{recording_name}_t0.{probe}.lf.bin"
+    # read LFP binary file
+    path_lfp_binary = get_lfp_path(recording)
+    lf_recording = spikeglx.Reader(path_lfp_binary)
 
-    # read file
-    sr = spikeglx.Reader(path_lfp_binary)
-    raw = sr[10_300_000:10_310_000, :sr.nc - sr.nsync].T # 300ms sample
-
-    ibl_channel_labels, computed_features = detect_bad_channels(raw, recording.get_sampling_frequency(), **kwargs)
-    outside_indices = np.where(ibl_channel_labels == 3)[0]
+    match method:
+        case "ibl":
+            channel_labels, computed_features = detect_outside_channels_batched(lf_recording, detection_function = detect_bad_channels, **kwargs)
+    
+    outside_indices = np.where(channel_labels == 3)[0]
     outside_channel_ids = recording.get_channel_ids()[outside_indices]
     recording_without_outside_channels = recording.remove_channels(outside_channel_ids) 
+
     print(f"Removed {len(outside_channel_ids)} outside channels based on LFP band.")
     print(f"{recording_without_outside_channels}\n")
 
     if plot:
-        fig, ax = show_outside_channels(raw, recording.get_sampling_frequency(), ibl_channel_labels, computed_features)
+        outside_boundary =  outside_indices[0] if len(outside_indices) > 0 else None
+        fig, ax = show_outside_channels(lf_recording, outside_boundary, computed_features, detection_method = method)
+        plt.show()
+        (output.figures_folder/"LFP_outside_channel_detection").mkdir(parents=True, exist_ok=True)
+        fig.savefig(output.figures_folder/"LFP_outside_channel_detection"/f"{output.recording_identifier}_LFP_outside_channel_detection.png", dpi=300)
+        print(f"Figure saved under '{output.figures_folder/output.recording_identifier}_LFP_outside_channel_detection.png'")
+
+    return recording_without_outside_channels
+
+
+def remove_manually_selected_channels(recording, plot = True, output = None):
+    """
+    Removes outside channels detected based on LFP
+    """
+    filepath = output.final_output_folder/"manually_selected_channels.json"
+
+    if not filepath.exists():
+        raise FileNotFoundError(f"No file with manually selected channels found under {filepath}. Please do manual selection first or change processing parameters!")
+    
+    manual_selection = load_json(filepath)
+    outside_boundary_probe = manual_selection.get(output.recording_identifier, "missing")
+
+    if outside_boundary_probe == "missing":
+        raise ValueError(f"No manually selected channels found for {output.recording_identifier} in {filepath}. Please do manual selection first or change processing parameters!")
+        
+    outside_channel_ids = recording.get_channel_ids()[outside_boundary_probe:] # get_channel_ids() -> starts with ap0
+    recording_without_outside_channels = recording.remove_channels(outside_channel_ids)
+
+    if plot:
+        from ibldsp.voltage import spikeglx
+        path_lfp_binary = get_lfp_path(recording)
+        lf_recording = spikeglx.Reader(path_lfp_binary)
+        fig, ax = show_outside_channels(lf_recording, outside_boundary = outside_boundary_probe, xfeats = None, detection_method = "manual")
         plt.show()
         (output.figures_folder/"LFP_outside_channel_detection").mkdir(parents=True, exist_ok=True)
         fig.savefig(output.figures_folder/"LFP_outside_channel_detection"/f"{output.recording_identifier}_LFP_outside_channel_detection.png", dpi=300)
@@ -80,7 +111,7 @@ def continue_si_pipeline(recording, **kwargs): # uses spike interface to continu
     return recording
 
 
-def print_parameter_information(step, step_parameters, spike_sorter=None, curation_method=None):
+def print_parameter_information(step, step_parameters, spike_sorter=None, curation_method=None): # move to utilities?
     match step:
         case "preprocessing":
             print(f"Chosen spike sorter: {spike_sorter}\n")
@@ -121,12 +152,13 @@ def pre_preprocessing(recording, custom_preprocessing_parameters):
     return custom_preprocessing_parameters
 
 
-def apply_preprocessing(recording, custom_preprocessing_parameters, figure_output_information):
+def apply_preprocessing(recording, custom_preprocessing_parameters, output_information): # move to NeuropixelsData?
     CUSTOM_PREPROCESSING_FUNCTION_MAP = {"correct_bad_channels": bad_channel_correction,
-                                     "detect_and_correct_drift": detect_and_correct_drift,
-                                     "lfp_outside_channel_detection": lfp_outside_channel_detection} # custom processing function names should not start with "spike_interface"!
+                                        "detect_and_correct_drift": detect_and_correct_drift,
+                                        "lfp_outside_channel_detection": lfp_outside_channel_detection,
+                                        "remove_manually_selected_channels": remove_manually_selected_channels} # custom processing function names should not start with "spike_interface"!
     
-    STEPS_WITH_PLOTS = ["lfp_outside_channel_detection"] # specify which steps have plots to save figures in correct folder
+    STEPS_WITH_OUTPUT = ["lfp_outside_channel_detection", "remove_manually_selected_channels"] # specify which steps have plots or need extra information
 
     for step_name, step_parameters in custom_preprocessing_parameters.items():
         if step_name.startswith("spike_interface"):
@@ -134,8 +166,8 @@ def apply_preprocessing(recording, custom_preprocessing_parameters, figure_outpu
         else:
             processing_function = CUSTOM_PREPROCESSING_FUNCTION_MAP[step_name]
         
-        if step_name in STEPS_WITH_PLOTS:
-            step_parameters["output"] = figure_output_information
+        if step_name in STEPS_WITH_OUTPUT:
+            step_parameters["output"] = output_information
         
         recording = processing_function(recording, **step_parameters)
 
@@ -195,7 +227,7 @@ class NeuropixelsData:
         total_size_recordings = get_size_of_folders(self.recordings_to_process) # gets total size of all recordings to process in GB
         required_GB = total_size_recordings * 2  # estimate of required space to run spike sorting ~2*recording size
         check_free_space(self.local_output_folder, required_GB) # check if there is enough free space
-        
+
         for recording_path in self.recordings_to_process:
             print(f"Processing recording {recording_path.name}...")
             
@@ -490,3 +522,7 @@ class NeuropixelsData:
 
                 if preprocessing and not postprocessing: # usually handled in self._postprocess_probe:
                     self._handle_preprocessed_recording(output_folder, handle_preprocessed_recording)
+
+    
+    def run_manual_outside_channel_detection(self, duration_sample=10, **kwargs):
+        return manual_outside_channel_detector(self, duration_sample=duration_sample, **kwargs)

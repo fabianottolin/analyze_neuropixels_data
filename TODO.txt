@@ -26,9 +26,16 @@
 - make lfp function usable at other places in pipeline, maybe all annotations = true when loading raw is enough so you later have access to stream info etc.
 
 ## mid-term/before next experiments ##
+- make possible to launch manual outside channel detection if delete_manually_slected called from pipeline and no data found
+	- use subset = [recording_identifier] to limit manual detection to this recording
 - add experiment to NeuropixelsData class and use it when building path?
 
 ## low priority ##
+- add automatic pre-selection to manual detection plot if enabled -> suggestion based on detect bad channels
+	- all outside channels have very regular low/high voltage variations (see in manual channel selection, window = 10s) -> detect these to set boundary
+- show previously selected channel/boundary line if overwrite existing data = true and data exists in manual outside detector
+- code better function that automatically detects outside channels
+- enable scrolling through time in manual channel selection with ipywidgets backend
 - create option to write new file instead
 	- maybe existing_files: ["overwrite", "keep", "skip_step"]
 	- multiple times sorting & repeat_sorting = true -> new folder called sorting_n, can reuse matlab function?
@@ -42,3 +49,5 @@
 	- compare spike sorters for IC
 - make available as pip
 	- alternative name if taken: signal processing, universal graphs and analysis routines commonly applied in neuropixels experiments (sugarcane)
+- use get_probe_name from master_thesis/utilities.py in recording identifier
+- separate class for processing functions so things like output etc. can be handled more easily?

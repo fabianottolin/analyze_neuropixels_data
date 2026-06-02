@@ -1,0 +1,36 @@
+  # continure here
+    # the median reference on all channels probably causes the function to behave unintended
+    # see if doing median on presumed inside channels helps -> does cbin work then (standard version not with np any removal! -> revert)
+        # deoesn't help, cause now it's biased the other way and few channels are detected
+    # if this doesnt help just do manual and then see if cbin or other looks better
+    # how does adaptive work -> why not detect first large jump in LF coherence and use the onset of that as threshold to remove channels based on LFP, then do that in cbins = 20-100
+    # and plot at random times
+    # do manual either way, note channel numbers for manual removal (worst case can always use that, but try how ur automatic version compares)
+        # what plot do i need for manual -> does interactive backend help?
+        # how does it compare in majority outside vs majority inside recordings
+    # revert changes in voltage and monkey patch!
+
+    # add manual outside channel detection thing, then add function to get from manual -> add to todo
+
+    # in thesis -> outside channel detection based on spatial coherence??? -> double check if correct
+        # also write why you did this -> median issue, shallow insertion depth, etc.
+
+    # outside channels are highly correlated in activity? or how is lf coherence computed? -> check code and write that
+        # -> method relies on detecting final substantial drop in spatial coherence along the electrode array.
+
+    # for recordings where manual LFP selection and this method didn't match (n = x) (see if there even are any once you do cbin?) -> manual only
+    # again done based on AP
+
+# manual detection 
+   # implment, then quickly do, 3 iterations, take average integer
+   # try if it works in pipeline if some are missing or if all are missing
+
+# move cbin function to processing functions once its cleaned up
+
+# leave detection based on PSD so that it works finally
+
+# clean code, push (after testing options), then do manual selection with help of recording notes and move on!!!
+    # now you can be sure that recording is processed fine
+    # test what is removed if you choose channel 0, what is removed if you choose channel 383
+        -> should be all/2 channels
+        # print recording.get_channel_ids to be sure

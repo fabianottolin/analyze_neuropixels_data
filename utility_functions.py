@@ -7,6 +7,8 @@ import spikeinterface.extractors as si_extractors
 import shutil
 import filecmp
 import psutil
+import json
+from typing import Literal
 
 # functions
 def get_parameters_for_sorter(spike_sorter, *configurations): # checks if key exists for configurations dictionaries and returns values associated with the key
@@ -52,11 +54,11 @@ def show_available_sorters(sorter_module):
     print(f"Installed sorters: {", ".join(sorter_module.installed_sorters())}")
 
 
-def check_probe_n(recording_path):
+def check_probe_n(recording_path, stream_name: Literal[".ap", ".ap-SYNC", ".lf"] = ".ap", verbose = False):
     stream_names, _ = si_extractors.get_neo_streams("spikeglx", recording_path)
-    ap_streams = [stream for stream in stream_names if stream.endswith(".ap")]
-    print(f"{len(ap_streams)} probe(s) found")
-    return ap_streams
+    streams = [stream for stream in stream_names if stream.endswith(stream_name)]
+    if verbose: print(f"{len(streams)} probe(s) found")
+    return streams
 
 
 def is_folder_with_files(folder): # returns boolean
@@ -135,6 +137,28 @@ def get_size_of_folders(folders: list):
     return total_size_GB
 
 
+def save_json(data, output_path: Path, filename: str):
+    if not filename.endswith(".json"):
+        filename += ".json"
+    with open(output_path / filename, "w", encoding="utf-8") as file: json.dump(data, file, indent = 4)
+
+
+def load_json(file_path):
+    file_path = str(file_path)
+    if not file_path.endswith(".json"):
+        file_path += ".json"
+    with open(file_path, "r", encoding="utf-8") as file:
+        return json.load(file)
+    
+
+def get_lfp_path(recording):
+    recording_path = Path(recording._kwargs["folder_path"])
+    recording_name = recording_path.name
+    probe = recording.stream_id.split(".")[0]
+    path_lfp_binary = recording_path/f"{recording_name}_{probe}"/f"{recording_name}_t0.{probe}.lf.bin"
+    return path_lfp_binary
+
+
 # def delete_empty_folders(directory: Path):
 
 
@@ -142,12 +166,18 @@ def get_size_of_folders(folders: list):
 ### utility classes ###
 
 class OutputPaths:
-    def __init__(self, local_output_folder: Path, final_output_folder: Path, recording, probe, spike_sorter):
-        self.preprocessing = local_output_folder/"recordings_preprocessed"/recording/probe
-        self.sorting_local = local_output_folder/"recordings_spike_sorted"/recording/probe/spike_sorter
-        self.sorting_final = final_output_folder/"recordings_spike_sorted"/recording/probe/spike_sorter
-        self.analyzer_local = local_output_folder/"sorting_analyzers"/recording/probe/spike_sorter
-        self.analyzer_final = final_output_folder/"sorting_analyzers"/recording/probe/spike_sorter
-        self.curation = self.analyzer_final/"curated"
-        self.figures_folder = final_output_folder/"figures"
+    def __init__(self, local_output_folder: Path, final_output_folder: Path, recording, probe, spike_sorter = None):
         self.recording_identifier = f"{recording}_{probe}"
+        self.final_output_folder = final_output_folder  
+        self.preprocessing = local_output_folder/"recordings_preprocessed"/recording/probe
+        self.figures_folder = final_output_folder/"figures"
+        
+        if spike_sorter is not None:
+            self.sorting_local = local_output_folder/"recordings_spike_sorted"/recording/probe/spike_sorter
+            self.sorting_final = final_output_folder/"recordings_spike_sorted"/recording/probe/spike_sorter
+            self.analyzer_local = local_output_folder/"sorting_analyzers"/recording/probe/spike_sorter
+            self.analyzer_final = final_output_folder/"sorting_analyzers"/recording/probe/spike_sorter
+            self.curation = self.analyzer_final/"curated"
+
+    def __str__(self):
+        return "\n".join(f"{key}: {value}" for key, value in self.__dict__.items())
