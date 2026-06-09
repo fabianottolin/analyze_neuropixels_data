@@ -1,9 +1,9 @@
 ## high priority ##
-# check if adding bombcell classification to sorting analyzer worked!
-- implement raw data quality metrics
+- implement raw data quality metrics!
 - implement option to split_by for multiple shanks/regions
 
 ## regular ##
+- add error to manual channel detection if subset not in selected
 - write check if all data exists for certain probe and skip if overwrite is false in run_processing function
 	- prevents separate checks for all steps
 - visualization
@@ -51,3 +51,5 @@
 	- alternative name if taken: signal processing, universal graphs and analysis routines commonly applied in neuropixels experiments (sugarcane)
 - use get_probe_name from master_thesis/utilities.py in recording identifier
 - separate class for processing functions so things like output etc. can be handled more easily?
+- add progress (recordingx/n) to manual outside channel detection
+- add save and continue later to manual outside channel detection

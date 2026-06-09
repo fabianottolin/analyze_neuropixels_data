@@ -201,7 +201,7 @@ class NeuropixelsData:
             preprocessed_recording = apply_preprocessing(raw_recording, preprocessing_parameters, output_folder)
 
             # save pre-processed recording as binary file on local drive; needed for kilosort, for other spike sorters may be faster to continue working with recording in memory
-            preprocessed_recording.save(folder = output_folder.preprocessing, format="binary") # assign saved_preprocessed_recording if you want to continue directly afterwards
+            preprocessed_recording.save(folder = output_folder.preprocessing, format="binary", overwrite = overwrite_existing_files) # assign saved_preprocessed_recording if you want to continue directly afterwards
 
         else:
             print(f"\033[33mWarning: Already processed probe before, skipping\033[0m\n")
@@ -259,7 +259,7 @@ class NeuropixelsData:
 
         if (overwrite_existing_files or not spike_sorting_exists) and preprocessing_file_exists: # run spike sorting
             saved_preprocessed_recording = si.load(output_folder.preprocessing) # load preprocessed recording
-            sorted_spikes = si_sorters.run_sorter(sorter_name=spike_sorter, recording=saved_preprocessed_recording, folder = output_folder.sorting_local, **spike_sorting_parameters) # set other parameters here if different from default sorter parameters, you can pass a full dict with the parameters
+            sorted_spikes = si_sorters.run_sorter(sorter_name=spike_sorter, recording=saved_preprocessed_recording, folder = output_folder.sorting_local, remove_existing_folder = overwrite_existing_files, **spike_sorting_parameters) # set other parameters here if different from default sorter parameters, you can pass a full dict with the parameters
             close_logger() # spike interface isnt properly closing kilosort4 logger, necesarry to close it here so data can be copied
             print(f"{spike_sorter.capitalize()} found {len(sorted_spikes.get_unit_ids())} units for probe.")
             copy_data(output_folder.sorting_local, output_folder.sorting_final) # copy spike sorting to final folder, delete locally saved spike sorting data
@@ -474,8 +474,8 @@ class NeuropixelsData:
         postprocessing_configurations = all_configurations["postprocessing"]
         curation_thresholds = all_configurations["curation"]
 
-        check_folder_structure(self.local_output_folder, ["recordings_preprocessed", "recordings_spike_sorted", "sorting_analyzers", "postprocessing/figures"])
-        check_folder_structure(self.final_output_folder, ["recordings_preprocessed", "recordings_spike_sorted", "sorting_analyzers", "postprocessing/figures"])
+        check_folder_structure(self.local_output_folder, ["recordings_preprocessed", "recordings_spike_sorted", "sorting_analyzers"])
+        check_folder_structure(self.final_output_folder, ["recordings_preprocessed", "recordings_spike_sorted", "sorting_analyzers", "figures"])
 
         if handle_preprocessed_recording != "keep": # if delteting or copying preprocessed recording to network drive only enough space for one recording necessary
             average_size_recordings = get_size_of_folders(self.recordings_to_process)/len(self.recordings_to_process)
