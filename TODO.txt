@@ -1,6 +1,7 @@
 ## high priority ##
 - implement raw data quality metrics!
 - implement option to split_by for multiple shanks/regions
+- fix detect outside channels batched
 
 ## regular ##
 - add error to manual channel detection if subset not in selected
@@ -51,5 +52,7 @@
 	- alternative name if taken: signal processing, universal graphs and analysis routines commonly applied in neuropixels experiments (sugarcane)
 - use get_probe_name from master_thesis/utilities.py in recording identifier
 - separate class for processing functions so things like output etc. can be handled more easily?
-- add progress (recordingx/n) to manual outside channel detection
-- add save and continue later to manual outside channel detection
+- manual outside channel detection
+	- add progress (recordingx/n) to manual outside channel detection
+	- add save and continue later to manual outside channel detection
+	- override automatic with manual if it exists, otherwise automatic

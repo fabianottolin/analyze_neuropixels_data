@@ -6,6 +6,7 @@
       # detect_saturation_periods -> extra step applied to raw recording before pre-processing
       # "spike_interface" -> spikeinterface preprocessing pipeline with given steps/parameters, if using multiple times call spike_intreface1, spike_interface2, ...
       # current custom steps available: "correct_bad_channels" -> detects bad channels, interpolates channels inside brain, removes channels out of brain
+                                        # " remove_manually_selected_channels" -> removes channels based on manual selection
                                         # "detect_and_correct_drift" -> motion correction                         
             # can be seen in CUSTOM_PREPROCESSING_FUNCTION_MAP (in processing_functions.py))
 preprocessing_configurations = {"kilosort4": {"detect_saturation_periods": {"saturation_threshold_uV": 1200, "diff_threshold_uV": 300}, # NP1.0 saturation_threshold = 1200uV, diff_threshold=300uV/sample; NP2.0 6250uV, 300 (from IBL whitepaper)
