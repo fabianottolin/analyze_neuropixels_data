@@ -1,0 +1,3 @@
+# update this
+
+# split basic analyses into separate parts (trigger extraction, unit_analyses, LFP_analyses)
