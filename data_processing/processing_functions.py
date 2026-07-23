@@ -136,7 +136,7 @@ def print_parameter_information(step, step_parameters, spike_sorter=None, curati
 
 def pre_preprocessing(recording, custom_preprocessing_parameters):
     custom_preprocessing_parameters = copy.deepcopy(custom_preprocessing_parameters) # prevents overwriting original dict
-    saturation_parameters = custom_preprocessing_parameters.pop("detect_saturation_periods", None) # doesnt work for multiple runs
+    saturation_parameters = custom_preprocessing_parameters.pop("detect_saturation_periods", None)
     if saturation_parameters is not None:
         print("Detecting saturation periods...")
         saturation_periods = si_preprocessing.detect_saturation_periods(recording, **saturation_parameters)

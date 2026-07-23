@@ -219,16 +219,8 @@ def get_spikes_tsgroup(analyzer, curation_labels: Literal["bombcell", "simple_th
     return spikes_group
 
 
-def _max_rate_normalization(mean_rate, reference = None):
-    maximum_rate = mean_rate.max() if reference is None else reference.max()
-    if maximum_rate != 0:
-        normalized = mean_rate / maximum_rate
-        return nap.Tsd(t=mean_rate.index, d = normalized.values)
-    else:
-        return None
-
-
-def normalize_spikes(normalization_method: Literal["baseline_z-score", "global_z-score", "baseline_subtraction", "max_rate"], mean_rate, baseline_window = None):
+def normalize_unit(normalization_method: Literal["baseline_z-score", "global_z-score", "baseline_subtraction", "max_rate"], mean_rate, baseline_window = None,
+                     reference_rate = None):
     """
     ------ Parameters ------
     normalization_method: str (options: "baseline_z-score", "global_z-score", "baseline_subtraction", "max_rate")
@@ -239,18 +231,20 @@ def normalize_spikes(normalization_method: Literal["baseline_z-score", "global_z
     mean_rate: nap.Tsd
     baseline_window: tuple (start, end)
     """
+    normalization_rate = mean_rate if reference_rate is None else reference_rate
+
     match normalization_method:
         case "baseline_subtraction":
             if baseline_window is None:
                 raise ValueError("If you want to normalize using baseline subtraction, normalization_baseline must be provided.")
             
-            baseline = mean_rate[(mean_rate.index >= baseline_window[0]) & (mean_rate.index < baseline_window[1])]
+            baseline = normalization_rate[(normalization_rate.index >= baseline_window[0]) & (normalization_rate.index < baseline_window[1])]
             normalized = mean_rate - baseline.mean()
             return nap.Tsd(t=mean_rate.index, d = normalized.values)
         case "baseline_z-score":
             if baseline_window is None:
                 raise ValueError("If you want to normalize using baseline z-score, normalization_baseline must be provided.")
-            baseline = mean_rate[(mean_rate.index >= baseline_window[0]) & (mean_rate.index < baseline_window[1])]
+            baseline = normalization_rate[(normalization_rate.index >= baseline_window[0]) & (normalization_rate.index < baseline_window[1])]
             baseline_std = baseline.std()
             if baseline_std != 0:
                 normalized = (mean_rate - baseline.mean())/baseline_std # z-score normalization
@@ -260,57 +254,60 @@ def normalize_spikes(normalization_method: Literal["baseline_z-score", "global_z
         case "global_z-score":
             if baseline_window is not None:
                 raise ValueError("If you want to normalize using baseline z-score, use normalization_method = 'baseline_z-score'.\n If you want to use the entire trace, set normalization_baseline to None.")
-            global_std = mean_rate.std()
+            global_std = normalization_rate.std()
             if global_std != 0:
-                normalized = (mean_rate - mean_rate.mean())/global_std # z-score normalization
+                normalized = (mean_rate - normalization_rate.mean())/global_std # z-score normalization
                 return nap.Tsd(t=mean_rate.index, d = normalized.values)
             else:
                 return None
         case "max_rate":
-            return _max_rate_normalization(mean_rate)
+            maximum_rate = normalization_rate.max()
+            if maximum_rate != 0:
+                normalized = mean_rate / maximum_rate
+                return nap.Tsd(t=mean_rate.index, d = normalized.values)
+            else:
+                return None
         case _:
             raise ValueError(f"Invalid normalization method: {normalization_method}. Choose 'baseline_subtraction', 'baseline_z-score', 'global_z-score', or 'max_rate'.")
  
 
-def normalize_to_reference(data_to_normalize, reference_data, method: Literal["max_rate"]):
+def get_normalized(data_to_normalize, normalization_method, baseline_window = None, normalization_reference = None):
     """
-    Normalizes data from one condition to reference data from another condition
+    Normalizes peristimulus data
 
     ------ Parameters ------
     data_to_normalize: dict
         Results of get_peristimulus_data()
         Unit ids as keys, contains mean firing rates (spikes/s) per bin (get_peristimulus_data -> output["mean_rates"])
-    reference_data: dict
+    normalization_method: str
+        See normalize_unit() for options
+    normalization_reference: dict
         Results of get_peristimulus_data
         Unit ids as keys, contains reference mean firing rates (spikes/s) per bin (get_peristimulus_data -> output["mean_rates"])
-    method: str (options: "max_rate")
-        "max_rate" -> divides mean rate in each bin by maximum mean rate of reference data across all bins
+    method: str
+        See normalize_unit() for options
     """
-    if data_to_normalize["mean_rates"].keys() != reference_data["mean_rates"].keys():
+    if normalization_reference is not None and data_to_normalize["mean_rates"].keys() != normalization_reference["mean_rates"].keys():
         raise ValueError("data_to_normalize and reference_data don't contain the same unit ids.")
-
-    match method:
-        case "max_rate":
-            normalization_function = _max_rate_normalization
-        case _:
-            raise ValueError(f"Invalid normalization method: {method}. Choose 'max_rate'.")
-
+        
     normalized_mean_rates = {}
     for unit_id, mean_rate in data_to_normalize["mean_rates"].items():
-        result = normalization_function(mean_rate, reference_data["mean_rates"][unit_id])
-        if result is not None:
-            normalized_mean_rates[unit_id] = nap.Tsd(t=mean_rate.index, d=result.values)
+        reference_rate = None if normalization_reference is None else normalization_reference["mean_rates"][unit_id]
+        normalized_rates = normalize_unit(normalization_method, mean_rate, baseline_window, reference_rate)
+
+        if normalized_rates is not None:
+            normalized_mean_rates[unit_id] = normalized_rates
         else:
-            print(f"Unit {unit_id} maximum firing rate is 0, skipping normalization") # return this message in normalize_spikes (depending on normalization_method) and do isinstance check isntead?
+            print(f"Unit {unit_id} baseline standard deviation or maximum firing rate is 0, skipping normalization") # return this message in normalize_unit (depending on normalization_method) and do isinstance check isntead?
             continue
 
-    data_to_normalize["normalized_mean_rates"] = normalized_mean_rates
-
-    return data_to_normalize
+    return normalized_mean_rates
 
 
-def get_peristimulus_data(spikes, stimulus_onsets, window, bin_size = 0.01, verbose = True, normalization_method: Literal["z-score", "baseline_subtraction", "max_rate"] = None,
-                          normalization_baseline = None):
+def get_peristimulus_data(spikes, stimulus_onsets, window, bin_size = 0.01, verbose = True,
+                          normalization_method: Literal["baseline_z-score", "baseline_subtraction", "max_rate", "global_z-score"] = None,
+                          normalization_baseline = None, normalization_reference = None):
+    # TODO: switch input order, first stimulus_onsets, then spikes, -> better for groupby_apply
     """
     Calculates trial-relative firing times in window and mean firing rates per bin for given stimulus onsets.
     If a normalization_baseline is provided, normalized mean firing rates (z-scored) are returned as well.
@@ -325,6 +322,10 @@ def get_peristimulus_data(spikes, stimulus_onsets, window, bin_size = 0.01, verb
         Size of time bins for spike counts in seconds
     normalization_baseline: tuple with (min, max) or None (default: None)
         Window used to compute baseline firing rate for normalization, if provided normalized mean rates are returned
+    normalization_reference: (default: None)
+        If provided, mean rates are normalized to reference data (e.g.: across conditions, from another condition), useful for groupby_apply calls
+        Unit ids in normalization_reference must match unit ids in spikes.
+        If None, normalization is done within the stimulus_onsets provided.
 
     ------ Returns ------
     peristimulus_data: dict
@@ -340,7 +341,6 @@ def get_peristimulus_data(spikes, stimulus_onsets, window, bin_size = 0.01, verb
         print("Computing peristimulus data...")
     perievent_times = nap.compute_perievent(spikes, events=stimulus_onsets, window=window) # -> returns spike times of spikes in window in trial-relative time, {unit_id1: tsgroup of trials with relative onsets, unit_id2: ...}
     perievent_mean_rates = {}
-    normalized_mean_rates = {}
     standard_deviations = {}
     
     for unit_id in spikes.index: # loop over unit ids
@@ -349,17 +349,11 @@ def get_peristimulus_data(spikes, stimulus_onsets, window, bin_size = 0.01, verb
         perievent_mean_rates[unit_id] = mean_rate
         standard_deviations[unit_id] = np.std(perievent_counts / bin_size, axis=1)
 
-        if normalization_method is not None:
-            normalized_rates = normalize_spikes(normalization_method, mean_rate, normalization_baseline)
-            if normalized_rates is not None:
-                normalized_mean_rates[unit_id] = normalized_rates
-            else:
-                print(f"Unit {unit_id} baseline standard deviation or maximum firing rate is 0, skipping normalization") # return this message in normalize_spikes (depending on normalization_method) and do isinstance check isntead?
-                continue
-
     peristimulus_data = {"times": perievent_times, "mean_rates": perievent_mean_rates, "standard_deviations": standard_deviations}
+
     if normalization_method is not None:
-        peristimulus_data["normalized_mean_rates"] = normalized_mean_rates
+        peristimulus_data["normalized_mean_rates"] = get_normalized(peristimulus_data, normalization_method, normalization_baseline, normalization_reference)
+
     return peristimulus_data
 
 
@@ -532,11 +526,37 @@ def spike_count_per_trial(spikes, trial_onsets, window):
     return counts
 
 
+def get_baseline_trials(trials_of_interest, all_trials, n_preceding): # rename get_relative_trials, then n_relative -> negative or positive? 
+    """
+    Returns nap.IntervalSet of trials of interest and n_preceding trials
+    """
+    # TODO: add option to check if some variable matches trial of interest & all preceding trials, add input check_column = None or list or str
+        # maybe add metadata column for block and use that in get mean_baseline_firing_rate
+    idx = np.searchsorted(all_trials.start, trials_of_interest.start)
+    
+    if not np.allclose(all_trials.start[idx], trials_of_interest.start):
+        raise ValueError("Some trials_of_interest were not found in all_trials.")
+    idx = idx[:, None] - np.arange(n_preceding + 1)   # (n_interest, n_preceding+1)
+
+    if np.any(idx < 0):
+        raise ValueError(f"Negative indices found, please adjust inputs! n_preceding may be too large.")
+    
+    idx = np.sort(idx.flatten())
+
+    if len(idx) != len(np.unique(idx)):
+        raise ValueError(f"Duplicate indices found.") # TODO: check if this is necessary or if there are cases where this is wanted
+    
+    return all_trials[idx]
+
+
 def get_mean_baseline_firing_rate(spikes, stimuli, baseline_window, n_preceding_trials):
     """
     Calculates mean firing rate from each n_preceding_trials consecutive trials in stimuli.
     """
     # TODO: add option to average across all provided baseline trials instead of last n
+    # TODO: add option to check some variable first (e.g.: noise level, probably have to do this in get_baseline_trials())
+            # however, then in this function there should be way to average all up to & including trial of interest, without fixed reliance on n_preceding_trials
+            # (e.g.: if only 2 trials available at fixed background dB, average those 2 only, after continnue with 3, ...)
     
     if missing := [name for name, val in (("stimuli", stimuli), ("n_preceding_trials", n_preceding_trials)) if val is None]:
         raise ValueError(f"{', '.join(missing)} must be provided to compute mean baseline firing rate.")
@@ -544,10 +564,10 @@ def get_mean_baseline_firing_rate(spikes, stimuli, baseline_window, n_preceding_
     if isinstance(stimuli, nap.IntervalSet):
         stimuli = nap.Ts(stimuli.start)
 
-    if len(stimuli) % n_preceding_trials != 0:
+    if len(stimuli) % (n_preceding_trials + 1) != 0:
         raise ValueError(f"Number of stimuli ({len(stimuli)}) is no multiple of n_preceding_trials ({n_preceding_trials}).")
 
-    baseline_rates = [firing_rate_per_trial(spikes, stimuli[j::n_preceding_trials], baseline_window) for j in range(n_preceding_trials)] # one arrray for j-th member of each block
+    baseline_rates = [firing_rate_per_trial(spikes, stimuli[j::n_preceding_trials + 1], baseline_window) for j in range(n_preceding_trials)] # one arrray for j-th member of each block
     baseline_mean = np.mean([baseline_rate.values for baseline_rate in baseline_rates], axis=0)
 
     return nap.TsdFrame(t = baseline_rates[n_preceding_trials - 1].index,
@@ -556,7 +576,7 @@ def get_mean_baseline_firing_rate(spikes, stimuli, baseline_window, n_preceding_
 
 
 def wilcoxon_test_responsive(stimulus_onsets, spikes, baseline_window, response_window, alpha = 0.05, alternative="two-sided",
-                             fdr_method = "fdr_bh", n_preceding_trials = None, baseline_trials = None, **kwargs_wilcoxon): # maybe create spikes_group class and add to that?
+                             fdr_method = "fdr_bh", n_preceding_trials = None, all_trials = None, **kwargs_wilcoxon): # maybe create spikes_group class and add to that?
     """
     Uses Wilcoxon signed-rank test to compare firing rates at baseline (window) and response window
 
@@ -576,22 +596,19 @@ def wilcoxon_test_responsive(stimulus_onsets, spikes, baseline_window, response_
     baseline_preceding_n: int (default: None)
         Number of preceding trials to use for baseline firing rate calculation.
         If n>1, the baseline window is the mean of the last n trials before stimulus onset
-    baseline_trials: pynapple.Ts or nap.IntervalSet (default: None)
-        These trials will be used to calculate the average baseline firing rate.
-        The total amount of trials should be a multiple of baseline_preceding_n, since baseline_preceding_n trials are used to calculate the mean baseline
+    all_trials: pynapple.Ts or nap.IntervalSet (default: None)
+        These trials will be used to get baseline trials and calculate the average baseline firing rate.
 
     ------ Returns ------
     results: pandas.DataFrame
         Indexed by unit_id
         Columns: p_raw (float, uncorrected p-value), p_corrected (float, only returned if fdr_method != None), mean_difference, responsive (bool), direction
-    """
-    if isinstance(stimulus_onsets, nap.IntervalSet):
-        stimulus_onsets = nap.Ts(stimulus_onsets.start)
-    
+    """    
     if n_preceding_trials is None and baseline_trials is None:
         baseline_rates = firing_rate_per_trial(spikes, stimulus_onsets, baseline_window)
     else:
-        if not np.allclose(baseline_trials[n_preceding_trials - 1::n_preceding_trials].start, stimulus_onsets.index):
+        baseline_trials = get_baseline_trials(stimulus_onsets, all_trials, n_preceding_trials)
+        if not np.allclose(baseline_trials[n_preceding_trials::n_preceding_trials + 1].start, stimulus_onsets.start): # is this still needed?
             raise ValueError("Baseline and response onsets are not aligned trial-for-trial.")
         baseline_rates = get_mean_baseline_firing_rate(spikes, baseline_trials, baseline_window, n_preceding_trials)
     
@@ -797,11 +814,8 @@ def get_population_heatmap_data(spikes, stimuli, configs, normalization_method, 
     if verbose:
         print("Computing heatmap data...")
     peristimulus_data = get_peristimulus_data(spikes, stimuli, window=configs.window, bin_size=configs.bin_size,
-                                              normalization_method = normalization_method if normalization_reference is None else None, 
-                                              normalization_baseline = normalization_baseline, verbose = False)
-
-    if normalization_reference is not None:
-        peristimulus_data = normalize_to_reference(peristimulus_data, reference_data=normalization_reference, method=normalization_method)
+                                              normalization_method = normalization_method, normalization_baseline = normalization_baseline,
+                                              normalization_reference = normalization_reference, verbose = False)
 
     detection_start, detection_end = (0, configs.window[1]) if sort_window is None else sort_window
     post_window = nap.IntervalSet(start = detection_start, end = detection_end)
@@ -953,3 +967,5 @@ class PeristimulusData: # TODO: use class instead of dict, replace everywhere in
     mean_rates: dict[int, nap.Tsd] # unit ids as keys, nap.Tsd with mean_rates per bin as values
     standard_deviation: dict
     normalized_mean_rates = None
+
+# TODO: add normalization configs class? (similar to configs in project specific functions?)
